@@ -1,0 +1,3 @@
+# [ GENERAL ] #
+target/
+Cargo.lock
