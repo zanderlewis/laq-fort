@@ -9,3 +9,4 @@ rand = "0.8.4"
 aes-gcm = "0.11.0-pre.1"
 clap = { version = "4.5.18", features = ["derive"] }
 zeroize = "1.4"
+base64 = "0.13.0"
