@@ -2,6 +2,11 @@
 name = "laq-fort"
 version = "0.0.1"
 edition = "2021"
+authors = ["Zander Lewis <zander@zanderlewis.dev>"]
+description = "The LAQ-Fort encryption algorithm."
+license = "MIT"
+repository = "https://github.com/zanderlewis/laq-fort"
+readme = "README.md"
 
 [dependencies]
 pqc_kyber = "0.7.1"
@@ -10,3 +15,4 @@ aes-gcm = "0.11.0-pre.1"
 clap = { version = "4.5.18", features = ["derive"] }
 zeroize = "1.4"
 base64 = "0.13.0"
+mle1 = "0.0.2"

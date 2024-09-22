@@ -8,6 +8,8 @@ use std::str;
 use clap::Parser;
 use zeroize::Zeroize;
 use base64::{encode, decode};
+use mle1::{decrypt as mle_decrypt, encrypt as mle_encrypt};
+use std::collections::HashMap;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -17,6 +19,10 @@ struct Args {
 
     #[clap(short, long, default_value_t = 8)]
     mult: usize,
+
+    // Data to be encrypted
+    #[clap(long)]
+    data: Option<String>,
 }
 
 #[derive(Debug)]
@@ -183,30 +189,45 @@ fn fractal_decrypt(shared_key: &[u8], data: &[u8], depth: usize, mult: usize) ->
 }
 
 // Encryption
-fn enc(data: &[u8], key: &[u8], depth: usize, mult: usize) -> Result<String, AesGcmError> {
+fn enc(data: &[u8], key: &[u8], depth: usize, mult: usize, mle_key: &str) -> Result<String, AesGcmError> {
+    // MLE-1 Encryption
+    let data_str = str::from_utf8(&data).map_err(|_e| AesGcmError)?;
+    let mle_encrypted_data = mle_encrypt(data_str, mle_key);
+
     // Fractal with depth
-    let fractal_encrypted_data = fractal_encrypt(key, data, depth, 0)?;
+    let fractal_encrypted_data = fractal_encrypt(key, mle_encrypted_data.as_bytes(), depth, 0)?;
+    
     // AES with mult
     let aes_data = aes_encrypt(key, &fractal_encrypted_data, mult)?;
+    
     // Base64 encode the final encrypted data
     let base64_encoded_data = encode(&aes_data);
+    
     // Return the final encrypted data as a Base64 encoded string
     Ok(base64_encoded_data)
 }
 
 // Decryption
-fn dec(data: &str, key: &[u8], depth: usize, mult: usize) -> Result<Vec<u8>, AesGcmError> {
+fn dec(data: &str, key: &[u8], depth: usize, mult: usize, mle_key: &str) -> Result<Vec<u8>, AesGcmError> {
     // Base64 decode the input data
     let base64_decoded_data = decode(data).map_err(|_| AesGcmError)?;
+    
     // AES with mult
     let aes_data = aes_decrypt(key, &base64_decoded_data, mult)?;
+    
     // Fractal with depth
     let decrypted_data = fractal_decrypt(key, &aes_data, depth, 0)?;
+    
+    // MLE-1 Decryption
+    let decrypted_data_str = str::from_utf8(&decrypted_data).map_err(|_e| AesGcmError)?;
+    let mle_decrypted_data = mle_decrypt(decrypted_data_str, mle_key, &HashMap::new());
+    let mle_decrypted_data = mle_decrypted_data;
+    
     // Return the final decrypted data
-    Ok(decrypted_data)
+    Ok(mle_decrypted_data.into())
 }
 
-fn laqf(depth: usize, mult: usize) -> Result<(), Box<dyn std::error::Error>> {
+fn laqf(depth: usize, mult: usize, data: Option<String>) -> Result<(), Box<dyn std::error::Error>> {
     let mut rng = OsRng;
 
     // Generate Kyber key pairs for two entities (can be more in a real-world application)
@@ -250,11 +271,17 @@ fn laqf(depth: usize, mult: usize) -> Result<(), Box<dyn std::error::Error>> {
         return Err(Box::new(CustomError::Other("Shared secrets do not match".to_string())));
     }
 
-    // Example data to be encrypted (can be any payload)
-    let data = "Top-secret NASA mission data.";
+    // Example data to be encrypted
+    let data = match data {
+        Some(data) => data,
+        None => "Hello, World!".to_string(),
+    };
 
-    // Entity 1 encrypts the data using enc function
-    let encrypted_data = match enc(data.as_bytes(), &shared_secret_1, depth, mult) {
+    // Define the MLE key
+    let mle_key = "mle_key"; // You might want to generate this securely
+
+    // Entity 1 encrypts the data using enc function with MLE
+    let encrypted_data = match enc(data.as_bytes(), &shared_secret_1, depth, mult, mle_key) {
         Ok(data) => data,
         Err(e) => {
             eprintln!("\x1b[1;31mFailed to encrypt data: {}\x1b[0m", e);
@@ -262,8 +289,8 @@ fn laqf(depth: usize, mult: usize) -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    // Entity 2 decrypts the data using dec function
-    let decrypted_data = match dec(&encrypted_data, &shared_secret_2, depth, mult) {
+    // Entity 2 decrypts the data using dec function with MLE
+    let decrypted_data = match dec(&encrypted_data, &shared_secret_2, depth, mult, mle_key) {
         Ok(data) => String::from_utf8(data)?,
         Err(e) => {
             eprintln!("\x1b[1;31mFailed to decrypt data: {}\x1b[0m", e);
@@ -298,6 +325,6 @@ fn laqf(depth: usize, mult: usize) -> Result<(), Box<dyn std::error::Error>> {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
     println!("Depth: {}, Mult: {}", args.depth, args.mult);
-    laqf(args.depth, args.mult)?;
+    let _ = laqf(args.depth, args.mult, args.data);
     Ok(())
 }
